@@ -1,0 +1,180 @@
+:root {
+  --bg-0: #07111b;
+  --bg-1: #13273a;
+  --panel: #0e1d2d;
+  --ink: #f4f8ff;
+  --ink-dim: #9eb4cb;
+  --accent: #29d3a1;
+  --accent-2: #35b6ff;
+  --danger: #ff6b6b;
+  --border: #21405c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 680px at 8% -10%, #244b6a 0%, transparent 48%),
+    radial-gradient(900px 520px at 94% 12%, #1f415d 0%, transparent 56%),
+    linear-gradient(150deg, var(--bg-0), var(--bg-1));
+  padding: 20px 14px 28px;
+}
+
+.app-shell {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 12px;
+}
+
+.title-block h1 {
+  margin: 0;
+  font-size: clamp(1.45rem, 2.8vw, 2.2rem);
+  letter-spacing: 0.02em;
+}
+
+.title-block p {
+  margin: 6px 0 0;
+  color: var(--ink-dim);
+  font-size: 0.96rem;
+}
+
+.controls-panel {
+  background: color-mix(in oklab, var(--panel), black 8%);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  border: 1px solid #3b6488;
+  background: #1a3550;
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn.primary {
+  background: linear-gradient(130deg, #1f9fda, #19b487);
+  border-color: transparent;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.slider-row span {
+  min-width: 86px;
+  font-weight: 600;
+}
+
+.slider-row input {
+  width: 100%;
+}
+
+.status {
+  margin: 0;
+  font-size: 0.93rem;
+  color: var(--ink-dim);
+}
+
+.stage-panel {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 15px 35px rgb(0 0 0 / 30%);
+  background: #040a12;
+}
+
+#videoInput {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  transform: scaleX(-1);
+  transform-origin: center;
+  background: #000;
+}
+
+#outputCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: transparent;
+}
+
+.lane-legend {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.lane-legend div {
+  background: color-mix(in oklab, var(--panel), black 5%);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 6px;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-size: 0.83rem;
+  color: #b7d1ea;
+}
+
+.lane-legend div.hot {
+  color: #e9fff7;
+  border-color: #2cd3a4;
+  background: linear-gradient(135deg, rgb(28 142 116 / 46%), rgb(16 88 136 / 42%));
+}
+
+@media (max-width: 760px) {
+  body {
+    padding: 12px;
+  }
+
+  .slider-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .slider-row span {
+    min-width: 0;
+  }
+
+  .lane-legend div {
+    font-size: 0.75rem;
+    padding: 7px 4px;
+  }
+}
