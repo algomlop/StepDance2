@@ -1,82 +1,85 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Webcam Step-Zone Motion (OpenCV.js)</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <main class="app-shell">
-      <header class="title-block">
-        <h1>Step-Zone Motion Prototype</h1>
-        <p>
-          4-lane webcam motion detection with global-motion cancellation, mini-zone
-          voting, and auto-exposure guard.
-        </p>
-      </header>
 
-      <section class="controls-panel">
-        <div class="button-row">
-          <button id="startBtn" class="btn primary" disabled>Start Camera</button>
-          <button id="stopBtn" class="btn" disabled>Stop</button>
-        </div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Webcam Step-Zone Motion (OpenCV.js)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
 
-        <label class="slider-row" for="sensitivity">
-          <span>Sensitivity</span>
-          <input
-            id="sensitivity"
-            type="range"
-            min="0.65"
-            max="1.8"
-            step="0.05"
-            value="1.0"
-          />
-        </label>
+<body>
+  <main class="app-shell">
+    <header class="title-block">
+      <h1>Step-Zone Motion Prototype</h1>
+      <p>
+        4-lane webcam motion detection with global-motion cancellation, mini-zone
+        voting, and auto-exposure guard.
+      </p>
+    </header>
 
-        <label class="slider-row" for="processingFps">
-          <span>Processing FPS</span>
-          <input
-            id="processingFps"
-            type="range"
-            min="6"
-            max="30"
-            step="1"
-            value="12"
-          />
-        </label>
-      </section>
+    <section class="controls-panel">
+      <div class="button-row">
+        <button id="startBtn" class="btn primary" disabled>Start Camera</button>
+        <button id="stopBtn" class="btn" disabled>Stop</button>
+      </div>
 
-      <p id="status" class="status">Loading OpenCV.js...</p>
+      <label class="slider-row" for="sensitivity">
+        <span>Sensitivity</span>
+        <input
+          id="sensitivity"
+          type="range"
+          min="0.65"
+          max="3.0"
+          step="0.05"
+          value="1.0"
+        />
+      </label>
 
-      <section class="stage-panel">
-        <video id="videoInput" autoplay playsinline muted></video>
-        <canvas id="outputCanvas"></canvas>
-      </section>
+      <label class="slider-row" for="processingFps">
+        <span>Processing FPS</span>
+        <input
+          id="processingFps"
+          type="range"
+          min="6"
+          max="30"
+          step="1"
+          value="12"
+        />
+      </label>
+    </section>
 
-      <section class="lane-legend" aria-label="Lane labels">
-        <div>LEFT</div>
-        <div>DOWN</div>
-        <div>UP</div>
-        <div>RIGHT</div>
-      </section>
-    </main>
+    <p id="status" class="status">Loading OpenCV.js...</p>
 
-    <script>
-      window.Module = {
-        onRuntimeInitialized() {
-          window.__opencvReady = true;
-          window.dispatchEvent(new Event("opencv-ready"));
-        },
-      };
-    </script>
-    <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
-    <script defer src="./app.js"></script>
-  </body>
+    <section class="stage-panel">
+      <video id="videoInput" autoplay playsinline muted></video>
+      <canvas id="outputCanvas"></canvas>
+    </section>
+
+    <section class="lane-legend" aria-label="Lane labels">
+      <div>LEFT</div>
+      <div>DOWN</div>
+      <div>UP</div>
+      <div>RIGHT</div>
+    </section>
+  </main>
+
+  <script>
+    window.Module = {
+      onRuntimeInitialized() {
+        window.__opencvReady = true;
+        window.dispatchEvent(new Event("opencv-ready"));
+      },
+    };
+  </script>
+  <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+  <script defer src="./app.js"></script>
+</body>
+
 </html>

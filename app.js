@@ -10,15 +10,19 @@
     processFpsMin: 6,
     processFpsMax: 30,
     zoneCount: 4,
+    zoneHeightRatios: [0.5, 0.3, 0.3, 0.5], // top-aligned lane heights
     miniCols: 2,
     miniRows: 3,
     sampleStep: 5,
     maxFlowForGlobal: 14.0,
     pixelMagThreshold: 0.9,
     miniActivationRatio: 0.15,
-    zoneCellActivation: 0.34,
-    zoneMeanMagThreshold: 1.15,
-    triggerFrames: 2,
+    arrowLenBase: 8,
+    arrowLenScale: 2,
+    arrowLenMax: 28,
+    arrowTriggerLenAtMinSens: 24,
+    arrowTriggerLenAtMaxSens: 12,
+    triggerFrames: 1,
     releaseFrames: 2,
     aeDiffThreshold: 18.0,
     aeResidualThreshold: 0.78,
@@ -90,6 +94,45 @@
     return Math.max(CFG.processFpsMin, Math.min(CFG.processFpsMax, raw));
   }
 
+  function getSensitivityValue() {
+    const raw = Number(ui.sensitivity?.value);
+    const min = Number(ui.sensitivity?.min);
+    const max = Number(ui.sensitivity?.max);
+    const safeMin = Number.isFinite(min) ? min : 0.65;
+    const safeMax = Number.isFinite(max) ? max : 3;
+    const fallback = 1;
+    const value = Number.isFinite(raw) ? raw : fallback;
+    return Math.max(safeMin, Math.min(safeMax, value));
+  }
+
+  function getArrowTriggerLengthForSensitivity(sensitivity) {
+    const min = Number(ui.sensitivity?.min);
+    const max = Number(ui.sensitivity?.max);
+    const sensMin = Number.isFinite(min) ? min : 0.65;
+    const sensMax = Number.isFinite(max) ? max : 3;
+    const range = Math.max(0.001, sensMax - sensMin);
+    const t = Math.max(0, Math.min(1, (sensitivity - sensMin) / range));
+    return (
+      CFG.arrowTriggerLenAtMinSens +
+      (CFG.arrowTriggerLenAtMaxSens - CFG.arrowTriggerLenAtMinSens) * t
+    );
+  }
+
+  function getArrowLength(vx, vy) {
+    const mag = Math.hypot(vx, vy);
+    if (!Number.isFinite(mag) || mag < 0.001) return 0;
+    return Math.min(CFG.arrowLenMax, CFG.arrowLenBase + mag * CFG.arrowLenScale);
+  }
+
+  function updateRunningStatus() {
+    if (!state.running) return;
+    const sensitivity = getSensitivityValue();
+    const arrowTriggerLen = getArrowTriggerLengthForSensitivity(sensitivity);
+    setStatus(
+      `Camera running. Preview full speed, detection capped at ${getTargetProcessFps()} FPS. ON when arrow >= ${arrowTriggerLen.toFixed(1)}.`
+    );
+  }
+
   function initDom() {
     ui.startBtn = document.getElementById("startBtn");
     ui.stopBtn = document.getElementById("stopBtn");
@@ -104,11 +147,13 @@
     if (ui.processingFps) {
       ui.processingFps.value = String(CFG.processFpsDefault);
       ui.processingFps.addEventListener("input", () => {
-        if (state.running) {
-          setStatus(
-            `Camera running. Preview full speed, detection capped at ${getTargetProcessFps()} FPS.`
-          );
-        }
+        updateRunningStatus();
+      });
+    }
+
+    if (ui.sensitivity) {
+      ui.sensitivity.addEventListener("input", () => {
+        updateRunningStatus();
       });
     }
 
@@ -147,9 +192,17 @@
       score: 0,
       activeCellRatio: 0,
       meanMag: 0,
+      arrowLength: 0,
       vecX: 0,
       vecY: 0,
     };
+  }
+
+  function getZoneHeight(zoneIdx, totalHeight) {
+    const configuredRatio = CFG.zoneHeightRatios[zoneIdx];
+    const ratio = Number.isFinite(configuredRatio) ? configuredRatio : 1;
+    const clampedRatio = Math.min(1, Math.max(0.05, ratio));
+    return Math.max(CFG.miniRows, Math.floor(totalHeight * clampedRatio));
   }
 
   function getStreamTrackSize(stream) {
@@ -276,9 +329,7 @@
 
       ui.startBtn.disabled = true;
       ui.stopBtn.disabled = false;
-      setStatus(
-        `Camera running. Preview full speed, detection capped at ${getTargetProcessFps()} FPS.`
-      );
+      updateRunningStatus();
 
       state.rafId = requestAnimationFrame(loop);
     } catch (error) {
@@ -545,13 +596,9 @@
     const gdx = median(globalX);
     const gdy = median(globalY);
 
-    const sensitivity = Math.max(0.65, Number(ui.sensitivity.value) || 1);
-    const pixelMagThreshold = CFG.pixelMagThreshold / sensitivity;
-    const zoneMeanMagThreshold = CFG.zoneMeanMagThreshold / sensitivity;
-    const zoneCellActivation = Math.max(
-      0.22,
-      CFG.zoneCellActivation / Math.sqrt(sensitivity)
-    );
+    const sensitivity = getSensitivityValue();
+    const pixelMagThreshold = CFG.pixelMagThreshold;
+    const arrowTriggerLen = getArrowTriggerLengthForSensitivity(sensitivity);
 
     const zonesRaw = [];
     let residualSum = 0;
@@ -561,14 +608,16 @@
     for (let zoneIdx = 0; zoneIdx < CFG.zoneCount; zoneIdx += 1) {
       const x0 = Math.floor(zoneIdx * zoneWidth);
       const x1 = Math.floor((zoneIdx + 1) * zoneWidth);
+      const zoneHeight = getZoneHeight(zoneIdx, height);
       const miniW = (x1 - x0) / CFG.miniCols;
-      const miniH = height / CFG.miniRows;
+      const miniH = zoneHeight / CFG.miniRows;
 
       let activeCells = 0;
       let zoneActiveMagSum = 0;
       let zoneActiveCount = 0;
       let vecX = 0;
       let vecY = 0;
+      let vecSamples = 0;
 
       for (let row = 0; row < CFG.miniRows; row += 1) {
         for (let col = 0; col < CFG.miniCols; col += 1) {
@@ -608,6 +657,7 @@
               zoneActiveCount += 1;
               vecX += rdx;
               vecY += rdy;
+              vecSamples += 1;
               cellSamples += 1;
             }
           }
@@ -621,14 +671,17 @@
 
       const activeCellRatio = activeCells / (CFG.miniCols * CFG.miniRows);
       const meanMag = zoneActiveMagSum / Math.max(1, zoneActiveCount);
-      const rawTrigger =
-        activeCellRatio >= zoneCellActivation && meanMag >= zoneMeanMagThreshold;
+      const avgVecX = vecX / Math.max(1, vecSamples);
+      const avgVecY = vecY / Math.max(1, vecSamples);
+      const arrowLength = getArrowLength(avgVecX, avgVecY);
+      const rawTrigger = arrowLength >= arrowTriggerLen;
 
       zonesRaw.push({
         activeCellRatio,
         meanMag,
-        vecX,
-        vecY,
+        arrowLength,
+        vecX: avgVecX,
+        vecY: avgVecY,
         rawTrigger,
       });
     }
@@ -648,7 +701,7 @@
 
     const zones = zonesRaw.map((zoneRaw, idx) => {
       const z = state.zoneState[idx];
-      if (zoneRaw.rawTrigger && !suppressed) {
+      if (zoneRaw.rawTrigger) {
         z.onCount += 1;
         z.offCount = 0;
       } else {
@@ -662,6 +715,7 @@
       z.score = 0.65 * z.score + 0.35 * (zoneRaw.activeCellRatio * zoneRaw.meanMag);
       z.activeCellRatio = zoneRaw.activeCellRatio;
       z.meanMag = zoneRaw.meanMag;
+      z.arrowLength = zoneRaw.arrowLength;
       z.vecX = zoneRaw.vecX;
       z.vecY = zoneRaw.vecY;
 
@@ -670,6 +724,7 @@
         score: z.score,
         activeCellRatio: z.activeCellRatio,
         meanMag: z.meanMag,
+        arrowLength: z.arrowLength,
         vecX: z.vecX,
         vecY: z.vecY,
       };
@@ -680,6 +735,8 @@
       suppressed,
       meanDiff,
       avgResidualMag,
+      sensitivity,
+      arrowTriggerLen,
       globalVec: { x: gdx, y: gdy, mag: Math.hypot(gdx, gdy) },
     };
   }
@@ -697,17 +754,18 @@
     for (let i = 0; i < CFG.zoneCount; i += 1) {
       const zone = analysis ? analysis.zones[i] : null;
       const x = i * laneW;
+      const zoneHeight = getZoneHeight(i, h);
 
       const idleFill = analysis && analysis.suppressed
         ? "rgba(255, 186, 94, 0.16)"
         : "rgba(10, 20, 34, 0.16)";
       const active = Boolean(zone && zone.active);
       ctx.fillStyle = active ? "rgba(41, 211, 161, 0.28)" : idleFill;
-      ctx.fillRect(x, 0, laneW, h);
+      ctx.fillRect(x, 0, laneW, zoneHeight);
 
       ctx.strokeStyle = active ? "#36ffc2" : "rgba(160, 200, 235, 0.45)";
       ctx.lineWidth = active ? 4 : 2;
-      ctx.strokeRect(x + 1, 1, laneW - 2, h - 2);
+      ctx.strokeRect(x + 1, 1, laneW - 2, zoneHeight - 2);
 
       ctx.strokeStyle = "rgba(145, 179, 206, 0.26)";
       ctx.lineWidth = 1;
@@ -715,11 +773,11 @@
         const gx = x + (c * laneW) / CFG.miniCols;
         ctx.beginPath();
         ctx.moveTo(gx, 0);
-        ctx.lineTo(gx, h);
+        ctx.lineTo(gx, zoneHeight);
         ctx.stroke();
       }
       for (let r = 1; r < CFG.miniRows; r += 1) {
-        const gy = (r * h) / CFG.miniRows;
+        const gy = (r * zoneHeight) / CFG.miniRows;
         ctx.beginPath();
         ctx.moveTo(x, gy);
         ctx.lineTo(x + laneW, gy);
@@ -732,11 +790,18 @@
       ctx.font = "500 12px 'Space Grotesk'";
       if (zone) {
         ctx.fillText(
-          `cells ${(zone.activeCellRatio * 100).toFixed(0)}% | mag ${zone.meanMag.toFixed(2)}`,
+          `cells ${(zone.activeCellRatio * 100).toFixed(0)}% | arrow ${zone.arrowLength.toFixed(1)} / ${analysis.arrowTriggerLen.toFixed(1)}`,
           x + 10,
           42
         );
-        drawVector(ctx, x + laneW * 0.5, h * 0.78, zone.vecX, zone.vecY, active);
+        drawVector(
+          ctx,
+          x + laneW * 0.5,
+          Math.max(18, zoneHeight * 0.74),
+          zone.vecX,
+          zone.vecY,
+          active
+        );
       }
       setLegendHot(i, active);
     }
@@ -766,11 +831,11 @@
 
   function drawVector(ctx, cx, cy, vx, vy, hot) {
     const mag = Math.hypot(vx, vy);
-    if (mag < 0.001) return;
+    const len = getArrowLength(vx, vy);
+    if (mag < 0.001 || len <= 0) return;
 
     const nx = vx / mag;
     const ny = vy / mag;
-    const len = Math.min(28, 8 + mag * 2);
     const ex = cx + nx * len;
     const ey = cy + ny * len;
 
